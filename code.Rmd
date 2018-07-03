@@ -1,0 +1,202 @@
+---
+title: "Games&Reviews - a mini text-mining project"
+author: Linping Yu
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE,
+                      warning = FALSE,
+                      comment = NA)
+```
+
+```{r include=FALSE}
+library(tidyverse)
+library(tidytext)
+library(flexdashboard)
+library(topicmodels)
+library(lubridate)
+library(stringr)
+library(reshape2)
+library(wordcloud)
+library(wordcloud2)
+library(DT)
+library(forcats)
+```
+
+```{r include = FALSE}
+nameList <- c('dota','Cities_skylines','Civilization','GTA5','pubg','Rocket_League')
+
+dat <- data_frame()
+
+for(name in nameList){
+  temp <- read_csv(paste0(name,'.csv'))
+  temp$gameId <- name
+  dat <- bind_rows(dat,
+                   temp)
+  rm(temp)
+}
+
+clean <- function(x){
+  x <- x %>% 
+    str_to_lower() %>% 
+    str_remove_all('[:digit:]*') %>% 
+    str_remove_all('[:punct:]*') %>% 
+    str_replace_all('[♥]+', ' ')
+  Encoding(x) <- 'ASCII'
+  x <- iconv(x, 'ASCII', 'ASCII', sub = '')
+  return(x)
+}
+
+dat <- dat %>% 
+  filter(!is.na(comment)) %>% 
+  mutate(date = ifelse(
+    grepl('^[A-Z][a-z]+\\s[0-9]+\\,', date),
+    date, 
+    paste0(date, ', 2018'))) %>% 
+  mutate(date = mdy(date),
+         title = factor(title)) %>% 
+  arrange(desc(date)) %>% 
+  distinct() %>% 
+  mutate(id = row_number(),
+         comment_clean = clean(comment))
+
+my_stop_words <- data_frame(word = c('game','games','play','dota','rocket','league','civ','civil','city', stop_words$word))
+```
+
+
+
+
+# Info {data-icon='fa-info'}
+
+## Row {.tabset .tabset-fade}
+
+### Opinion Comparison Count
+```{r}
+comparison_review <- dat %>% 
+  select(gameId, title, comment_clean) %>% 
+  unnest_tokens(word, comment_clean) %>% 
+  anti_join(my_stop_words, by = 'word')
+```
+
+```{r}
+DT::datatable(head(comparison_review %>% count(word, title, sort = T) %>% ungroup(), 1000), options = list(pageLength = 10))
+```
+
+### Game Comparison Count
+```{r}
+DT::datatable(head(comparison_review %>% count(word, gameId, sort = T) %>% ungroup(), 1000), options = list(pageLength = 10))
+```
+
+-------------------------------------------
+
+## WordCloud
+
+### Opinion Comparison
+```{r}
+comparison_review %>% 
+  count(word, title, sort = T) %>% 
+  acast(word ~ title, value.var = 'n', fill = 0) %>% 
+  comparison.cloud(colors=brewer.pal(4, 'Set2'), random.order = FALSE, rot.per = 0.25, title.size = 1.5)
+```
+
+
+### Game Comparison
+
+```{r}
+comparison_review %>% 
+  count(word, gameId, sort = T) %>% 
+  acast(word ~ gameId, value.var = 'n', fill = 0) %>% 
+  comparison.cloud(colors=brewer.pal(6, 'Set2'), max.words = 1000, random.order = FALSE, rot.per = 0.25, title.size = 1.5)
+```
+
+
+# Wordcloud {data-icon='fa-cloud'}
+
+##Data Table
+
+### Top 10 Words for each Game
+
+```{r}
+wordcloud <- dat %>% 
+  select(gameId, comment_clean) %>% 
+  unnest_tokens(word, comment_clean) %>% 
+  anti_join(my_stop_words, by = 'word') %>% 
+  count(word, gameId, sort = T) %>% 
+  ungroup() %>% 
+  group_by(word, gameId) %>% 
+  summarise(freq = sum(n)) %>% 
+  arrange(gameId,desc(freq))
+DT::datatable(wordcloud %>% group_by(gameId) %>% top_n(10, freq), options = list(pageLength=10))
+```
+
+
+```{r}
+wordcloud
+```
+
+
+## Wordcloud {.tabset .tabset-fade}
+
+### Cities Skylines
+
+
+
+
+```{r}
+wordcloud %>%
+  filter(gameId == 'Cities_skylines') %>%
+  select(word, freq) %>%
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### GTA V
+
+```{r}
+wordcloud %>% 
+  filter(gameId == 'GTA5') %>% 
+  select(word, freq) %>% 
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### PUBG 
+
+```{r}
+wordcloud %>% 
+  filter(gameId == 'pubg') %>% 
+  select(word, freq) %>% 
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### DOTA2
+
+```{r}
+wordcloud %>% 
+  filter(gameId == 'dota') %>% 
+  select(word, freq) %>% 
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### Civil VI
+
+```{r}
+wordcloud %>%
+  filter(gameId == 'Civilization') %>%
+  select(word, freq) %>%
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### Rocket League
+
+```{r}
+wordcloud %>% 
+  filter(gameId == 'Rocket_League') %>% 
+  select(word, freq) %>% 
+  with(wordcloud(word, freq, rot.per = 0.25, max.words = 200, colors=brewer.pal(12, 'Paired'), random.order = FALSE))
+```
+
+### TF_IDF
+```{r}
+
+```
+
